@@ -34,4 +34,3 @@ ENTERO: 'entero';
 VAR : [a-zA-Z_][a-zA-Z_0-9]* ;   // nombre de variable
 NUM : [0-9]+ ('.' [0-9]+)? ;
 WS  : [ \t\r\n]+ -> skip ;
-
