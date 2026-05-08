@@ -34,6 +34,13 @@ Alternativamente, también funciona con:
 python -m UL.main
 ```
 
-## Compilación
+## Testing con GRUN
 
-La aplicación analiza el código de entrada y muestra el árbol sintáctico si no hay errores.
+Para testing interactivo con Java, consulta `grun_example.sh` que muestra cómo usar GRUN con archivos Java generados por ANTLR4.
+
+Para Python, esta interfaz proporciona funcionalidad equivalente con análisis detallado de tokens, símbolos y árbol sintáctico.
+
+La interfaz incluye un panel lateral con:
+- Ejercicio de ejemplo con instrucciones
+- Opciones de ANTLR4 (desplegable para ahorrar espacio)
+- Información sobre GRUN (herramienta de testing Java - esta interfaz Python proporciona funcionalidad equivalente)

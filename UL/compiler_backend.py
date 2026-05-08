@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 from antlr4 import InputStream, CommonTokenStream
 from antlr4.error.ErrorListener import ErrorListener
+from antlr4.Token import Token
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
@@ -22,8 +23,11 @@ except ImportError as exc:
 class CompilerReport:
     success: bool
     output: str
-    tree: Optional[str] = None
+    tree_text: Optional[str] = None
+    tree: Optional[object] = None
     errors: List[str] = field(default_factory=list)
+    tokens: List[str] = field(default_factory=list)
+    symbols: List[str] = field(default_factory=list)
 
 class ParserErrorListener(ErrorListener):
     def __init__(self):
@@ -44,6 +48,15 @@ def parse_source(source: str) -> CompilerReport:
     lexer.removeErrorListeners()
 
     token_stream = CommonTokenStream(lexer)
+    token_stream.fill()
+
+    # Capturar tokens
+    tokens = []
+    for token in token_stream.tokens:
+        if token.type != Token.EOF:
+            token_name = compiladorLexer.symbolicNames[token.type] if token.type < len(compiladorLexer.symbolicNames) else f"T{token.type}"
+            tokens.append(f"{token_name}: '{token.text}' (línea {token.line}:{token.column})")
+
     parser = compiladorParser(token_stream)
     parser.removeErrorListeners()
 
@@ -51,11 +64,50 @@ def parse_source(source: str) -> CompilerReport:
     parser.addErrorListener(error_listener)
 
     tree = parser.inicio()
+
+    # Capturar símbolos (variables declaradas) - búsqueda más robusta
+    symbols = []
+    try:
+        # Buscar todas las declaraciones de variables en el árbol
+        def find_variables(node):
+            if hasattr(node, 'getRuleIndex') and node.getRuleIndex() == 2:  # declaracionVariables
+                if hasattr(node, 'children') and node.children and len(node.children) >= 2:
+                    # Buscar el token VAR en los hijos
+                    for child in node.children:
+                        if hasattr(child, 'getText') and hasattr(child, 'getSymbol'):
+                            symbol = child.getSymbol()
+                            if symbol and symbol.type == compiladorLexer.VAR:
+                                var_name = child.getText()
+                                symbols.append(f"Variable: {var_name} (tipo: entero)")
+                                break
+            # Recursión en hijos
+            if hasattr(node, 'children') and node.children:
+                for child in node.children:
+                    find_variables(child)
+
+        find_variables(tree)
+    except Exception:
+        # Si hay algún error en la extracción de símbolos, continuar sin ellos
+        pass
+
     if error_listener.errors:
         output_lines = ["Errores de sintaxis:"]
         output_lines.extend(f"- {err}" for err in error_listener.errors)
-        return CompilerReport(success=False, output="\n".join(output_lines), errors=error_listener.errors)
+        return CompilerReport(
+            success=False,
+            output="\n".join(output_lines),
+            errors=error_listener.errors,
+            tokens=tokens,
+            symbols=symbols,
+        )
 
     tree_text = tree.toStringTree(recog=parser)
     output = "Análisis completo sin errores.\n\nÁrbol sintáctico:\n" + tree_text
-    return CompilerReport(success=True, output=output, tree=tree_text)
+    return CompilerReport(
+        success=True,
+        output=output,
+        tree_text=tree_text,
+        tree=tree,
+        tokens=tokens,
+        symbols=symbols,
+    )

@@ -1,6 +1,7 @@
 import html
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                               QHBoxLayout, QTextEdit, QPushButton, QLabel)
+                               QHBoxLayout, QTextEdit, QPushButton, QLabel, QGroupBox,
+                               QTabWidget, QTreeWidget, QTreeWidgetItem)
 from PyQt6.QtGui import QFont
 from .compiler_backend import parse_source
 
@@ -49,12 +50,21 @@ class CompiladorApp(QMainWindow):
 
         left_panel.addLayout(button_bar)
 
-        left_panel.addWidget(QLabel('Consola de Salida / Árbol Sintáctico:'))
+        self.results_tabs = QTabWidget()
+
         self.console_output = QTextEdit()
         self.console_output.setReadOnly(True)
         self.console_output.setStyleSheet('background-color: #1e1e1e; color: #d4d4d4;')
         self.console_output.setFont(QFont('Consolas', 10))
-        left_panel.addWidget(self.console_output)
+        self.results_tabs.addTab(self.console_output, 'Consola')
+
+        self.tree_view = QTreeWidget()
+        self.tree_view.setHeaderHidden(True)
+        self.tree_view.setFont(QFont('Consolas', 10))
+        self.results_tabs.addTab(self.tree_view, 'Árbol GUI')
+
+        left_panel.addWidget(QLabel('Resultados:'))
+        left_panel.addWidget(self.results_tabs)
 
         right_panel.addWidget(QLabel('Ejercicio de ejemplo'))
         self.example_info = QTextEdit()
@@ -77,7 +87,13 @@ class CompiladorApp(QMainWindow):
         )
         right_panel.addWidget(self.example_info)
 
-        right_panel.addWidget(QLabel('Opciones de ANTLR4'))
+        # Grupo desplegable para opciones de ANTLR4
+        self.antlr_group = QGroupBox('Opciones de ANTLR4')
+        self.antlr_group.setCheckable(True)
+        self.antlr_group.setChecked(False)  # Inicialmente cerrado
+        self.antlr_group.setStyleSheet('QGroupBox { font-weight: bold; }')
+
+        antlr_layout = QVBoxLayout()
         self.antlr_options = QTextEdit()
         self.antlr_options.setReadOnly(True)
         self.antlr_options.setFont(QFont('Consolas', 10))
@@ -99,9 +115,29 @@ class CompiladorApp(QMainWindow):
             '  -Xmaxerrs <n>                                    Límite de errores\n'
             '  -encoding <codificación>                         Codificación de entrada\n'
             '  -help                                            Muestra ayuda completa\n'
-            '  -version                                         Muestra la versión de ANTLR4\n'
+            '  -version                                         Muestra la versión de ANTLR4\n\n'
+            'GRUN - Herramienta de testing interactivo (Java):\n'
+            '  Nota: GRUN es principalmente para testing con Java. Para Python,\n'
+            '  esta interfaz proporciona funcionalidad similar.\n\n'
+            '  Sintaxis: grun GrammarName startRuleName [options] [input-filename(s)]\n'
+            '  Ejemplos:\n'
+            '    grun compilador inicio -tokens              Muestra tokens\n'
+            '    grun compilador inicio -tree                Muestra árbol de parseo\n'
+            '    grun compilador inicio -gui                 Interfaz gráfica del árbol\n'
+            '    echo "Lenguaje { entero a; }" | grun compilador inicio\n'
+            '  Opciones grun:\n'
+            '    -tokens          Muestra la secuencia de tokens\n'
+            '    -tree            Muestra el árbol de parseo en texto\n'
+            '    -gui             Muestra el árbol en interfaz gráfica\n'
+            '    -ps file.ps      Genera árbol en PostScript\n'
+            '    -trace           Muestra el trace del parser\n'
+            '    -diagnostics     Muestra diagnósticos detallados\n'
+            '    -SLL             Usa estrategia SLL en lugar de LL(*)\n'
+            '    -encoding name   Codificación de entrada\n'
         )
-        right_panel.addWidget(self.antlr_options)
+        antlr_layout.addWidget(self.antlr_options)
+        self.antlr_group.setLayout(antlr_layout)
+        right_panel.addWidget(self.antlr_group)
 
         main_layout.addLayout(left_panel, 3)
         main_layout.addLayout(right_panel, 2)
@@ -128,8 +164,53 @@ class CompiladorApp(QMainWindow):
         else:
             self.console_output.append("<span style='color:red;'><b>✘ Errores encontrados</b></span>")
 
-        safe_output = html.escape(report.output).replace('\n', '<br>')
-        self.console_output.append(f"<span style='color:#d4d4d4; font-family: Consolas;'>{safe_output}</span>")
+        # Mostrar tokens si existen
+        self.tree_view.clear()
+
+        if report.tokens:
+            self.console_output.append("\n<b>Tokens reconocidos:</b>")
+            for token in report.tokens:
+                self.console_output.append(f"  {token}")
+
+        if report.symbols:
+            self.console_output.append("\n<b>Tabla de símbolos:</b>")
+            for symbol in report.symbols:
+                self.console_output.append(f"  {symbol}")
+
+        if report.tree_text:
+            self.console_output.append("\n<b>Árbol sintáctico (texto):</b>")
+            safe_tree = html.escape(report.tree_text).replace('\n', '<br>')
+            self.console_output.append(f"<span style='color:#d4d4d4; font-family: Consolas;'>{safe_tree}</span>")
+        else:
+            safe_output = html.escape(report.output).replace('\n', '<br>')
+            self.console_output.append(f"<span style='color:#d4d4d4; font-family: Consolas;'>{safe_output}</span>")
+
+        if report.tree:
+            self._populate_tree_widget(report.tree)
+
+    def _populate_tree_widget(self, tree_root):
+        self.tree_view.clear()
+        root_item = QTreeWidgetItem([self._format_tree_node(tree_root)])
+        self.tree_view.addTopLevelItem(root_item)
+        self._add_children_to_item(tree_root, root_item)
+        self.tree_view.expandToDepth(1)
+
+    def _format_tree_node(self, node):
+        if hasattr(node, 'getChildCount') and node.getChildCount() == 0:
+            return node.getText()
+        label = node.__class__.__name__
+        if label.endswith('Context'):
+            label = label[:-7]
+        return label
+
+    def _add_children_to_item(self, node, item):
+        if not hasattr(node, 'getChildCount'):
+            return
+        for i in range(node.getChildCount()):
+            child = node.getChild(i)
+            child_item = QTreeWidgetItem([self._format_tree_node(child)])
+            item.addChild(child_item)
+            self._add_children_to_item(child, child_item)
 
 
 def run_app():
