@@ -1,7 +1,7 @@
 grammar compilador;
 
 inicio:
-                      'DarkLanguage' '{' instrucciones* '}'
+                      'Lenguaje' '{' instrucciones* '}'
                       ;
 
 instrucciones:
