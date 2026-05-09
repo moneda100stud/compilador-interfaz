@@ -25,13 +25,18 @@ class CompiladorApp(QMainWindow):
         self.code_editor = QTextEdit()
         self.code_editor.setFont(QFont('Consolas', 12))
         self.code_editor.setPlaceholderText(
-            'Lenguaje {\n    entero x;\n    x = 10 + 5;\n}')
+            'Lenguaje {\n    entero x;\n    si (x > 0) { ... }\n}')
         self.code_editor.setText(
             'Lenguaje {\n'
             '    entero a;\n'
             '    entero b;\n'
             '    a = 5;\n'
-            '    b = a * (2 + 3);\n'
+            '    mientras (a > 0) {\n'
+            '        a = a - 1;\n'
+            '    }\n'
+            '    si (a == 0) {\n'
+            '        b = 10;\n'
+            '    }\n'
             '}')
         left_panel.addWidget(self.code_editor)
 
@@ -75,14 +80,20 @@ class CompiladorApp(QMainWindow):
             '<b>Ejercicio:</b><br>'
             '1. Declara dos variables enteras.<br>'
             '2. Asigna un valor a la primera variable.<br>'
-            '3. Asigna una expresión aritmética con paréntesis a la segunda.<br>'
-            '4. Observa el árbol sintáctico generado.<br><br>'
+            '3. Crea un ciclo <b>mientras</b> que reduzca el valor.<br>'
+            '4. Usa un condicional <b>si</b> para verificar el resultado.<br>'
+            '5. Observa el árbol sintáctico generado.<br><br>'
             '<b>Ejemplo válido:</b><br>'
             'Lenguaje {<br>'
             '&nbsp;&nbsp;entero a;<br>'
-            '&nbsp;&nbsp;entero b;<br>'
             '&nbsp;&nbsp;a = 5;<br>'
-            '&nbsp;&nbsp;b = a * (2 + 3);<br>'
+            '&nbsp;&nbsp;mientras (a > 0) {<br>'
+            '&nbsp;&nbsp;&nbsp;&nbsp;a = a - 1;<br>'
+            '&nbsp;&nbsp;}<br>'
+            '&nbsp;&nbsp;si (a == 0) {<br>'
+            '&nbsp;&nbsp;&nbsp;&nbsp;entero b;<br>'
+            '&nbsp;&nbsp;&nbsp;&nbsp;b = 1;<br>'
+            '&nbsp;&nbsp;}<br>'
             '}'
         )
         right_panel.addWidget(self.example_info)
@@ -147,8 +158,15 @@ class CompiladorApp(QMainWindow):
             'Lenguaje {\n'
             '    entero a;\n'
             '    entero b;\n'
-            '    a = 5;\n'
-            '    b = a * (2 + 3);\n'
+            '    a = 10;\n'
+            '    mientras (a > 0) {\n'
+            '        a = a - 1;\n'
+            '    }\n'
+            '    si (a == 0) {\n'
+            '        b = 100;\n'
+            '    } sino {\n'
+            '        b = 0;\n'
+            '    }\n'
             '}'
         )
         self.code_editor.setText(ejemplo)

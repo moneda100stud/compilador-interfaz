@@ -1,4 +1,4 @@
-# Generated from C:\Users\alsan\Documents\compilador-interfaz\compilador-interfaz\grammar\compilador.g4 by ANTLR 4.9.3
+# Generated from c:\Users\alsan\Documents\compilador-interfaz\compilador-interfaz\grammar\compilador.g4 by ANTLR 4.9.3
 from antlr4 import *
 if __name__ is not None and "." in __name__:
     from .compiladorParser import compiladorParser
@@ -44,6 +44,24 @@ class compiladorListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by compiladorParser#CondicionalStmt.
+    def enterCondicionalStmt(self, ctx:compiladorParser.CondicionalStmtContext):
+        pass
+
+    # Exit a parse tree produced by compiladorParser#CondicionalStmt.
+    def exitCondicionalStmt(self, ctx:compiladorParser.CondicionalStmtContext):
+        pass
+
+
+    # Enter a parse tree produced by compiladorParser#CicloStmt.
+    def enterCicloStmt(self, ctx:compiladorParser.CicloStmtContext):
+        pass
+
+    # Exit a parse tree produced by compiladorParser#CicloStmt.
+    def exitCicloStmt(self, ctx:compiladorParser.CicloStmtContext):
+        pass
+
+
     # Enter a parse tree produced by compiladorParser#SumRes.
     def enterSumRes(self, ctx:compiladorParser.SumResContext):
         pass
@@ -59,6 +77,15 @@ class compiladorListener(ParseTreeListener):
 
     # Exit a parse tree produced by compiladorParser#Numero.
     def exitNumero(self, ctx:compiladorParser.NumeroContext):
+        pass
+
+
+    # Enter a parse tree produced by compiladorParser#Comparacion.
+    def enterComparacion(self, ctx:compiladorParser.ComparacionContext):
+        pass
+
+    # Exit a parse tree produced by compiladorParser#Comparacion.
+    def exitComparacion(self, ctx:compiladorParser.ComparacionContext):
         pass
 
 

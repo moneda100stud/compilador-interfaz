@@ -70,7 +70,10 @@ def parse_source(source: str) -> CompilerReport:
     try:
         # Buscar todas las declaraciones de variables en el árbol
         def find_variables(node):
-            if hasattr(node, 'getRuleIndex') and node.getRuleIndex() == 2:  # declaracionVariables
+            # Buscamos nodos que correspondan a la regla de declaración
+            # Se usa el nombre de la clase para mayor robustez si cambian los índices
+            class_name = node.__class__.__name__
+            if 'Declaracion' in class_name:
                 if hasattr(node, 'children') and node.children and len(node.children) >= 2:
                     # Buscar el token VAR en los hijos
                     for child in node.children:
