@@ -1,7 +1,7 @@
 import html
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QTextEdit, QPushButton, QLabel, QGroupBox,
-                               QTabWidget, QTreeWidget, QTreeWidgetItem)
+                               QTabWidget, QTreeWidget, QTreeWidgetItem, QComboBox, QStyleFactory)
 from PyQt6.QtGui import QFont
 from .compiler_backend import parse_source
 
@@ -70,6 +70,37 @@ class CompiladorApp(QMainWindow):
 
         left_panel.addWidget(QLabel('Resultados:'))
         left_panel.addWidget(self.results_tabs)
+
+        # Nueva sección de resumen (después del árbol/pestañas)
+        left_panel.addWidget(QLabel('Resumen de Ejecución:'))
+        self.summary_output = QTextEdit()
+        self.summary_output.setReadOnly(True)
+        self.summary_output.setStyleSheet('background-color: #252526; color: #00ff00; border: 1px solid #333;')
+        self.summary_output.setFont(QFont('Consolas', 10))
+        left_panel.addWidget(self.summary_output)
+
+        # Sección de Cambio de Temas
+        self.theme_group = QGroupBox('Apariencia del Sistema')
+        theme_layout = QHBoxLayout()
+        self.theme_combo = QComboBox()
+        # Obtener todos los temas disponibles en el sistema (Fusion, Windows, etc.)
+        available_styles = QStyleFactory.keys()
+        self.theme_combo.addItems(available_styles)
+        
+        # Agregar temas personalizados
+        self.custom_themes = {
+            "Neon Personalizado": self._get_neon_qss(),
+            "Estilo Plasma": self._get_plasma_qss(),
+            "Material Neon": self._get_material_neon_qss(),
+            "Futurista QSS": self._get_futuristic_qss()
+        }
+        self.theme_combo.addItems(self.custom_themes.keys())
+        
+        self.theme_combo.currentTextChanged.connect(self.cambiar_tema)
+        theme_layout.addWidget(QLabel('Tema:'))
+        theme_layout.addWidget(self.theme_combo)
+        self.theme_group.setLayout(theme_layout)
+        right_panel.addWidget(self.theme_group)
 
         right_panel.addWidget(QLabel('Ejercicio de ejemplo'))
         self.example_info = QTextEdit()
@@ -182,29 +213,141 @@ class CompiladorApp(QMainWindow):
         else:
             self.console_output.append("<span style='color:red;'><b>✘ Errores encontrados</b></span>")
 
-        # Mostrar tokens si existen
+        # Mostrar resultados reales de las variables
         self.tree_view.clear()
 
-        if report.tokens:
-            self.console_output.append("\n<b>Tokens reconocidos:</b>")
-            for token in report.tokens:
-                self.console_output.append(f"  {token}")
-
-        if report.symbols:
-            self.console_output.append("\n<b>Tabla de símbolos:</b>")
+        if report.values:
+            self.console_output.append("\n<b>Valores finales de variables:</b>")
+            for name, value in report.values.items():
+                self.console_output.append(f"  {name} = {value}")
+        elif report.symbols:
+            self.console_output.append("\n<b>Variables declaradas:</b>")
             for symbol in report.symbols:
                 self.console_output.append(f"  {symbol}")
-
-        if report.tree_text:
-            self.console_output.append("\n<b>Árbol sintáctico (texto):</b>")
-            safe_tree = html.escape(report.tree_text).replace('\n', '<br>')
-            self.console_output.append(f"<span style='color:#d4d4d4; font-family: Consolas;'>{safe_tree}</span>")
         else:
             safe_output = html.escape(report.output).replace('\n', '<br>')
             self.console_output.append(f"<span style='color:#d4d4d4; font-family: Consolas;'>{safe_output}</span>")
 
         if report.tree:
             self._populate_tree_widget(report.tree)
+        # Mostrar la sección de resumen adaptada
+        self._mostrar_resumen_final(report)
+
+    def cambiar_tema(self, nombre_tema):
+        """Cambia el estilo de la aplicación dinámicamente"""
+        if nombre_tema in self.custom_themes:
+            # Aplicar QSS personalizado sobre el estilo Fusion para consistencia
+            QApplication.setStyle("Fusion")
+            self.setStyleSheet(self.custom_themes[nombre_tema])
+        else:
+            # Limpiar estilos personalizados y usar tema del sistema
+            self.setStyleSheet("")
+            QApplication.setStyle(nombre_tema)
+
+    def _get_neon_qss(self):
+        return """
+            QMainWindow { background-color: #050505; }
+            QLabel { color: #ff00ff; font-weight: bold; }
+            QTextEdit { background-color: #121212; color: #00ffff; border: 2px solid #ff00ff; border-radius: 5px; }
+            QPushButton { background-color: #121212; color: #ff00ff; border: 2px solid #ff00ff; border-radius: 10px; padding: 5px; }
+            QPushButton:hover { background-color: #ff00ff; color: black; }
+            QGroupBox { color: #00ffff; border: 1px solid #00ffff; margin-top: 10px; }
+        """
+
+    def _get_plasma_qss(self):
+        return """
+            QMainWindow { background-color: #eff0f1; }
+            QWidget { color: #232629; font-family: 'Segoe UI'; }
+            QTextEdit { background-color: #ffffff; border: 1px solid #babdbf; border-radius: 3px; color: #232629; }
+            QPushButton { background-color: #3daee9; color: white; border-radius: 4px; padding: 6px; border: none; }
+            QPushButton:hover { background-color: #2980b9; }
+            QTabWidget::pane { border: 1px solid #babdbf; }
+            QTabBar::tab { background: #d1d4d6; padding: 8px; margin-right: 2px; }
+            QTabBar::tab:selected { background: #ffffff; border-bottom: 2px solid #3daee9; }
+        """
+
+    def _get_material_neon_qss(self):
+        return """
+            QMainWindow { background-color: #212121; }
+            QLabel { color: #bb86fc; }
+            QTextEdit { background-color: #2c2c2c; color: #e0e0e0; border-radius: 4px; border-bottom: 2px solid #03dac6; }
+            QPushButton { background-color: #6200ee; color: #03dac6; border-radius: 8px; font-weight: bold; padding: 8px; }
+            QPushButton#compile_btn { background-color: #3700b3; border: 1px solid #03dac6; }
+            QGroupBox { border: 1px solid #444; color: #03dac6; border-radius: 10px; padding-top: 15px; }
+        """
+
+    def _get_futuristic_qss(self):
+        return """
+            QMainWindow { background-color: #0d0d0d; }
+            QWidget { color: #e0e0e0; }
+            QTextEdit { background-color: #1a1a1a; color: #00ffcc; border: 1px solid #00ffcc; border-radius: 2px; }
+            QPushButton { 
+                background-color: #1a1a1a; 
+                color: #00ffcc; 
+                border: 1px solid #00ffcc; 
+                padding: 10px;
+                font-family: 'Consolas';
+            }
+            QPushButton:hover { 
+                background-color: #00ffcc; 
+                color: #0d0d0d;
+                border: 1px solid #ffffff;
+            }
+            QTreeWidget { background-color: #1a1a1a; border: 1px solid #00ffcc; color: #00ffcc; }
+            QHeaderView::section { background-color: #333; color: #00ffcc; }
+        """
+
+    def ejecutar_logica(self, valor=None, funcion=None, *args, **kwargs):
+        """
+        Devuelve el resultado de funcion(*args, **kwargs) si existe,
+        de lo contrario devuelve valor.
+        """
+        if funcion is not None:
+            if args or kwargs:
+                return funcion(*args, **kwargs)
+            if valor is not None:
+                try:
+                    return funcion(valor)
+                except TypeError:
+                    return funcion()
+            return funcion()
+        return valor
+
+    def ejecutar_y_formatear(self, *f_args, formato="{}", **f_kwargs):
+        """Envuélve el resultado de la lógica y lo formatea para la interfaz gráfica"""
+        valor = self.ejecutar_logica(*f_args, **f_kwargs)
+        return formato.format(valor)
+
+    def _mostrar_resumen_final(self, report):
+        self.summary_output.clear()
+
+        # Calculamos el conteo de tokens usando la lógica de ejecución flexible
+        token_count = self.ejecutar_y_formatear(
+            funcion=lambda r: len(r.tokens),
+            r=report,
+            formato="{}"
+        )
+
+        self._append_seccion_ui("RESULTADO PRINCIPAL (Tokens)", token_count)
+
+        # Requisito: Mostrar el código del árbol sintáctico en la consola
+        if report.tree_text:
+            self.console_output.append("\n<b>Representación del Árbol (Texto):</b>")
+            self.console_output.append(f"<code style='color:#ce9178;'>{html.escape(report.tree_text)}</code>")
+
+        stats = (
+            f"Tokens totales: {token_count}\n"
+            f"Variables: {len(report.values)}\n"
+            f"Declaraciones: {len(report.symbols)}\n"
+            f"Errores: {len(report.errors)}"
+        )
+        self._append_seccion_ui("ESTADÍSTICAS", stats)
+
+    def _append_seccion_ui(self, titulo, texto):
+        self.summary_output.append(f"--- {titulo} ---")
+        self.summary_output.append(texto)
+        self.summary_output.append("-" * (len(titulo) + 8) + "\n")
+
 
     def _populate_tree_widget(self, tree_root):
         self.tree_view.clear()
@@ -230,10 +373,12 @@ class CompiladorApp(QMainWindow):
             item.addChild(child_item)
             self._add_children_to_item(child, child_item)
 
-
 def run_app():
     import sys
     app = QApplication(sys.argv)
     window = CompiladorApp()
     window.show()
     sys.exit(app.exec())
+
+if __name__ == "__main__":
+    run_app()

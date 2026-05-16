@@ -2,7 +2,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from typing import List, Optional
-from antlr4 import InputStream, CommonTokenStream
+from antlr4 import InputStream, CommonTokenStream, TerminalNode
 from antlr4.error.ErrorListener import ErrorListener
 from antlr4.Token import Token
 
@@ -28,6 +28,7 @@ class CompilerReport:
     errors: List[str] = field(default_factory=list)
     tokens: List[str] = field(default_factory=list)
     symbols: List[str] = field(default_factory=list)
+    values: dict = field(default_factory=dict)
 
 class ParserErrorListener(ErrorListener):
     def __init__(self):
@@ -65,36 +66,137 @@ def parse_source(source: str) -> CompilerReport:
 
     tree = parser.inicio()
 
-    # Capturar símbolos (variables declaradas) - búsqueda más robusta
     symbols = []
-    try:
-        # Buscar todas las declaraciones de variables en el árbol
-        def find_variables(node):
-            # Buscamos nodos que correspondan a la regla de declaración
-            # Se usa el nombre de la clase para mayor robustez si cambian los índices
-            class_name = node.__class__.__name__
-            if 'Declaracion' in class_name:
-                if hasattr(node, 'children') and node.children and len(node.children) >= 2:
-                    # Buscar el token VAR en los hijos
-                    for child in node.children:
-                        if hasattr(child, 'getText') and hasattr(child, 'getSymbol'):
-                            symbol = child.getSymbol()
-                            if symbol and symbol.type == compiladorLexer.VAR:
-                                var_name = child.getText()
-                                symbols.append(f"Variable: {var_name} (tipo: entero)")
-                                break
-            # Recursión en hijos
-            if hasattr(node, 'children') and node.children:
-                for child in node.children:
-                    find_variables(child)
+    values = {}
+    declared = set()
 
-        find_variables(tree)
-    except Exception:
-        # Si hay algún error en la extracción de símbolos, continuar sin ellos
-        pass
+    def parse_number(text: str):
+        return int(text) if '.' not in text else float(text)
+
+    def declare_variable(name: str):
+        if name not in declared:
+            declared.add(name)
+            symbols.append(f"Variable: {name} (tipo: entero)")
+            values[name] = None
+
+    def assign_variable(name: str, value):
+        if name not in declared:
+            declared.add(name)
+            symbols.append(f"Variable: {name} (tipo: entero)")
+        values[name] = value
+
+    def eval_expr(expr):
+        if expr is None:
+            raise ValueError("Expresión vacía")
+
+        class_name = expr.__class__.__name__
+        if class_name == 'NumeroContext':
+            return parse_number(expr.NUM().getText())
+        if class_name == 'VariableContext':
+            name = expr.VAR().getText()
+            if name not in values:
+                raise NameError(f"Variable no declarada: {name}")
+            return values[name]
+        if class_name == 'ParentesisContext':
+            return eval_expr(expr.expr())
+        if class_name == 'SumResContext':
+            left = eval_expr(expr.expr(0))
+            right = eval_expr(expr.expr(1))
+            if expr.op.text == '+':
+                return left + right
+            return left - right
+        if class_name == 'MulDivContext':
+            left = eval_expr(expr.expr(0))
+            right = eval_expr(expr.expr(1))
+            if expr.op.text == '*':
+                return left * right
+            return left / right
+        if class_name == 'ComparacionContext':
+            left = eval_expr(expr.expr(0))
+            right = eval_expr(expr.expr(1))
+            op = expr.op.text
+            if op == '>':
+                return left > right
+            if op == '<':
+                return left < right
+            if op == '==':
+                return left == right
+            return left != right
+
+        raise ValueError(f"Tipo de expresión no soportado: {class_name}")
+
+    def collect_instruction_blocks(context):
+        blocks = [[]]
+        current_block = blocks[0]
+        depth = 0
+
+        for child in context.children:
+            if isinstance(child, TerminalNode):
+                symbol = child.getSymbol() if hasattr(child, 'getSymbol') else child.symbol
+                if symbol is None:
+                    continue
+                token_type = symbol.type
+                if token_type == compiladorParser.SINO and depth == 0:
+                    blocks.append([])
+                    current_block = blocks[-1]
+                    continue
+                if token_type == compiladorParser.LLAVE_A:
+                    depth += 1
+                    continue
+                if token_type == compiladorParser.LLAVE_C:
+                    depth -= 1
+                    continue
+            elif isinstance(child, compiladorParser.InstruccionesContext):
+                current_block.append(child)
+
+        return blocks
+
+    def execute_instruction(instruction):
+        if instruction.declaracionVariables() is not None:
+            decl = instruction.declaracionVariables()
+            declare_variable(decl.VAR().getText())
+            return
+
+        if instruction.asignacionVariables() is not None:
+            asign = instruction.asignacionVariables()
+            assign_variable(asign.VAR().getText(), eval_expr(asign.expr()))
+            return
+
+        if instruction.condicional() is not None:
+            cond = instruction.condicional()
+            condition = eval_expr(cond.expr())
+            blocks = collect_instruction_blocks(cond)
+            if condition:
+                for instr in blocks[0]:
+                    execute_instruction(instr)
+            elif len(blocks) > 1:
+                for instr in blocks[1]:
+                    execute_instruction(instr)
+            return
+
+        if instruction.ciclo() is not None:
+            ciclo = instruction.ciclo()
+            blocks = collect_instruction_blocks(ciclo)
+            while eval_expr(ciclo.expr()):
+                for instr in blocks[0]:
+                    execute_instruction(instr)
+            return
+
+        raise ValueError("Instrucción no reconocida o no soportada")
+
+    try:
+        instrucciones_nodes = tree.instrucciones()
+        if instrucciones_nodes is not None:
+            if isinstance(instrucciones_nodes, list):
+                for instr in instrucciones_nodes:
+                    execute_instruction(instr)
+            else:
+                execute_instruction(instrucciones_nodes)
+    except Exception as exc:
+        error_listener.errors.append(f"Error de ejecución: {exc}")
 
     if error_listener.errors:
-        output_lines = ["Errores de sintaxis:"]
+        output_lines = ["Errores de sintaxis o ejecución:"]
         output_lines.extend(f"- {err}" for err in error_listener.errors)
         return CompilerReport(
             success=False,
@@ -102,10 +204,11 @@ def parse_source(source: str) -> CompilerReport:
             errors=error_listener.errors,
             tokens=tokens,
             symbols=symbols,
+            values=values,
         )
 
     tree_text = tree.toStringTree(recog=parser)
-    output = "Análisis completo sin errores.\n\nÁrbol sintáctico:\n" + tree_text
+    output = "Análisis completo sin errores."
     return CompilerReport(
         success=True,
         output=output,
@@ -113,4 +216,5 @@ def parse_source(source: str) -> CompilerReport:
         tree=tree,
         tokens=tokens,
         symbols=symbols,
+        values=values,
     )
